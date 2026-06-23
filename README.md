@@ -66,8 +66,8 @@ xcodebuild -scheme mlx-swift-surya-Package -destination 'platform=macOS' test
       box overlay, reading-order flow, all-pages streaming, page flipping, model-download UX)
 - [x] **Release build + benchmark** — `surya-cli bench`; detection **0.53 s/page** (Release) vs
       ~367 s (Debug), **0 MB active-memory drift** (no leak)
-- [x] **DocC site** (`Scripts/build_docs.sh`) published to GitHub Pages via
-      `.github/workflows/docs.yml` → <https://mnmly.github.io/mlx-swift-surya/>
+- [x] **DocC site** (`Scripts/build_docs.sh`) published to GitHub Pages (gh-pages branch) →
+      <https://mnmly.github.io/mlx-swift-surya/>
 - [ ] Batched multi-page VLM decode for throughput; end-to-end numerical parity vs Python (future)
 
 ## Performance
@@ -115,10 +115,11 @@ xcodebuild -project Examples/SuryaDemo/SuryaDemo.xcodeproj -scheme SuryaDemo \
 API reference is published with DocC to GitHub Pages:
 **<https://mnmly.github.io/mlx-swift-surya/>**
 
-Rebuild it locally with `Scripts/build_docs.sh` (uses `xcodebuild docbuild` +
-`transform-for-static-hosting` — the SwiftPM DocC plugin can't compile mlx-swift's Metal
-shaders). `///` doc comments on public symbols are published, so keep them healthy when changing
-the public API.
+Build + publish with `Scripts/build_docs.sh publish` (builds the static site, then force-pushes it
+to the `gh-pages` branch, which Pages serves). It uses `xcodebuild docbuild` +
+`transform-for-static-hosting` — the SwiftPM DocC plugin can't compile mlx-swift's Metal shaders,
+and `docbuild` is unreliable on CI runners for this package, so docs are built locally. `///` doc
+comments on public symbols are published, so keep them healthy when changing the public API.
 
 ## License
 

@@ -61,7 +61,44 @@ public final class DetectionEngine {
         try DetectionWeights.load(
             into: model, url: modelDirectory.appendingPathComponent("model.safetensors"),
             dtype: dtype)
+        // Eval mode: BatchNorm must use the loaded running_mean/running_var, not batch statistics
+        // of the input. Without this the heatmap diverges from the PyTorch reference.
+        model.train(false)
         MLX.eval(model.parameters())
+    }
+
+    /// Run the model on a pinned NHWC `pixel_values` tensor and return the sigmoid heatmaps
+    /// NHWC `(1, H/4, W/4, numLabels)` — for numerical parity tests.
+    public func rawForward(_ pixelValuesNHWC: MLXArray) -> MLXArray {
+        let out = model(pixelValuesNHWC)
+        MLX.eval(out)
+        return out
+    }
+
+    /// The 4 encoder stage outputs (NHWC) for a pinned input — for stage-by-stage parity bisection.
+    public func encoderStates(_ pixelValuesNHWC: MLXArray) -> [MLXArray] {
+        let s = model.vit(pixelValuesNHWC)
+        MLX.eval(s)
+        return s
+    }
+
+    /// Stem internals (`in_conv` output + full stem output, NHWC) — for parity bisection within
+    /// the stem.
+    public func stemTrace(_ pixelValuesNHWC: MLXArray) -> [String: MLXArray] {
+        let ic = model.vit.stem.inConv
+        let convOnly = ic.conv(pixelValuesNHWC)
+        let bnOut = ic.norm.map { $0(convOnly) } ?? convOnly
+        let inConv = ic(pixelValuesNHWC)
+        let stem = model.vit.stem(pixelValuesNHWC)
+        MLX.eval([convOnly, bnOut, inConv, stem])
+        return ["in_conv_conv": convOnly, "in_conv_bn": bnOut, "in_conv": inConv, "stem": stem]
+    }
+
+    /// The pre-sigmoid decode-head logits (NHWC) for a pinned input — for parity bisection.
+    public func decodeLogits(_ pixelValuesNHWC: MLXArray) -> MLXArray {
+        let out = model.decodeHead(model.vit(pixelValuesNHWC))
+        MLX.eval(out)
+        return out
     }
 
     /// Detect text lines on a page. Returns boxes in the page's pixel coordinates.

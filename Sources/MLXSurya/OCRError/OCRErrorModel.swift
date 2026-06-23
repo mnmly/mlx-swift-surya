@@ -75,6 +75,14 @@ public final class OCRErrorEngine {
         self.tokenizer = try await AutoTokenizer.from(modelFolder: modelDirectory)
     }
 
+    /// Raw classifier logits for pinned token ids (no tokenizer) — for numerical parity tests.
+    public func logits(inputIds: [Int]) -> [Float] {
+        let input = MLXArray(inputIds.map { Int32($0) }, [1, inputIds.count])
+        let out = model(input)
+        MLX.eval(out)
+        return out[0].asArray(Float.self)
+    }
+
     /// Classify one text span. Returns the predicted label (`"good"`/`"bad"`) + its probability.
     public func detect(_ text: String) -> OCRErrorVerdict {
         var ids = tokenizer.encode(text: text)  // includes [CLS] … [SEP]

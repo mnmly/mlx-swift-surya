@@ -68,7 +68,10 @@ xcodebuild -scheme mlx-swift-surya-Package -destination 'platform=macOS' test
       ~367 s (Debug), **0 MB active-memory drift** (no leak)
 - [x] **DocC site** (`Scripts/build_docs.sh`) published to GitHub Pages (gh-pages branch) →
       <https://mnmly.github.io/mlx-swift-surya/>
-- [ ] Batched multi-page VLM decode for throughput; end-to-end numerical parity vs Python (future)
+- [x] **Numerical parity vs Python** (`Scripts/parity/`, `surya-cli parity …`): OCR-error logits
+      0.0027, detection heatmap 0.0037, VLM input_ids identical — caught & fixed a detection
+      eval-mode (BatchNorm) bug
+- [ ] Batched multi-page VLM decode for throughput (future)
 
 ## Performance
 

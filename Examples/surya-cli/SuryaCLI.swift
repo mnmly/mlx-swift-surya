@@ -15,10 +15,84 @@ struct SuryaCLI: AsyncParsableCommand {
             """,
         subcommands: [
             Info.self, Detect.self, Layout.self, OCR.self, Structure.self, Table.self, Gen.self,
-            QA.self, Bench.self,
+            QA.self, Bench.self, Parity.self,
         ],
         defaultSubcommand: Info.self
     )
+}
+
+/// Numerical parity against pinned Python reference tensors (see scripts that dump them).
+struct Parity: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "parity",
+        abstract: "Numerical parity vs pinned Python references.",
+        subcommands: [
+            OCRErrParity.self, DetectParity.self, DetectStagesParity.self, VLMInputsParity.self,
+        ])
+
+    static func report(_ r: SuryaParity.Result) throws {
+        print(
+            String(
+                format: "%@: max abs diff %.5f (tol %.5f) — %@", r.name, r.maxAbsDiff, r.tolerance,
+                r.pass ? "PASS ✅" : "FAIL ❌"))
+        print("  \(r.detail)")
+        if !r.pass { throw ExitCode.failure }
+    }
+
+    struct OCRErrParity: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(commandName: "ocrerr")
+        @Option(name: .long, help: "Pinned reference safetensors (input_ids + logits).")
+        var ref: String
+        func run() async throws {
+            err("Loading OCR-error model…")
+            let engine = try await OCRErrorEngine(modelDirectory: OCRErrorModel.download())
+            try Parity.report(
+                try SuryaParity.ocrError(refURL: URL(fileURLWithPath: ref), engine: engine))
+        }
+    }
+
+    struct DetectParity: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(commandName: "detect")
+        @Option(name: .long, help: "Pinned reference safetensors (pixel_values + heatmap).")
+        var ref: String
+        func run() async throws {
+            err("Loading detection model…")
+            let engine = try await DetectionEngine(modelDirectory: DetectionModel.download())
+            try Parity.report(
+                try SuryaParity.detection(refURL: URL(fileURLWithPath: ref), engine: engine))
+        }
+    }
+
+    struct VLMInputsParity: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(commandName: "vlm-inputs")
+        @Option(name: .long, help: "Reference JSON (rendered + input_ids) from parity_vlm_inputs.py.")
+        var ref: String
+        func run() async throws {
+            err("Loading VLM tokenizer…")
+            let dir = SuryaModel.resolveSnapshotDirectory(try await SuryaModel.download())
+            let tokenizer = try SuryaWordLevelTokenizer(directory: dir)
+            try Parity.report(
+                try SuryaParity.vlmInputs(refURL: URL(fileURLWithPath: ref), tokenizer: tokenizer))
+        }
+    }
+
+    struct DetectStagesParity: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(commandName: "detect-stages")
+        @Option(name: .long, help: "Reference safetensors with pixel_values.")
+        var ref: String
+        @Option(name: .long, help: "Reference safetensors with stage0..3 + decode_logits.")
+        var stages: String
+        func run() async throws {
+            err("Loading detection model…")
+            let engine = try await DetectionEngine(modelDirectory: DetectionModel.download())
+            let results = try SuryaParity.detectionStages(
+                pixelValuesURL: URL(fileURLWithPath: ref),
+                stagesURL: URL(fileURLWithPath: stages), engine: engine)
+            for r in results {
+                print(String(format: "%-14@ max=%.5f  %@", r.name as NSString, r.maxAbsDiff, r.detail))
+            }
+        }
+    }
 }
 
 /// Benchmark + memory-leak harness: loops one stage on a warm session and reports MLX memory

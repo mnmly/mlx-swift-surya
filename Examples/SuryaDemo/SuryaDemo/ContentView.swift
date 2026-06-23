@@ -14,7 +14,7 @@ struct ContentView: View {
             preview
                 .frame(minWidth: 320, maxHeight: .infinity)
             ScrollView {
-                Text((model.current?.text).flatMap { $0.isEmpty ? nil : $0 } ?? "Results appear here.")
+                Text(resultText)
                     .font(.system(.body, design: .monospaced))
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -23,6 +23,15 @@ struct ContentView: View {
             .frame(minWidth: 280, maxHeight: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// The right-hand text panel: in Structure mode the whole-document Markdown (stitched across
+    /// pages); otherwise the selected page's per-stage output.
+    private var resultText: String {
+        if model.mode == .structure {
+            return model.structuredMarkdown.isEmpty ? "Results appear here." : model.structuredMarkdown
+        }
+        return (model.current?.text).flatMap { $0.isEmpty ? nil : $0 } ?? "Results appear here."
     }
 
     private var controls: some View {
@@ -55,6 +64,11 @@ struct ContentView: View {
                     ForEach(DemoMode.allCases) { Text($0.rawValue).tag($0) }
                 }
                 .pickerStyle(.radioGroup)
+                if model.mode == .structure {
+                    Toggle("Normalize orthography (long-s, ligatures)", isOn: $model.normalizeOrthography)
+                    Text("Folds historical print toward modern spelling; the faithful text is kept too.")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                }
             }
             Section("VLM precision") {
                 Picker("Precision", selection: $model.precision) {

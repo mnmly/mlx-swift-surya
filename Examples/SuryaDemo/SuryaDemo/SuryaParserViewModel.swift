@@ -11,6 +11,7 @@ enum DemoMode: String, CaseIterable, Identifiable {
     case detect = "Detect lines"
     case layout = "Layout"
     case ocr = "OCR (full page)"
+    case structure = "Structure"
     case table = "Table"
     var id: String { rawValue }
 }
@@ -72,6 +73,9 @@ final class SuryaParserViewModel {
     var precision: SuryaPrecision = .bf16
     /// Image-token budget — the OCR/layout/table speed lever.
     var imageDetail: ImageDetail = .full
+    /// Structure mode: fold historical orthography (long-s → s, ligatures) into a normalized
+    /// track. No effect on other modes.
+    var normalizeOrthography: Bool = false
 
     var status: String = "Choose an input file, pick a mode, then Run."
     var isRunning: Bool = false
@@ -82,6 +86,10 @@ final class SuryaParserViewModel {
     var results: [PageResult] = []
     var selectedPage: Int = 0
     var totalPages: Int = 0
+
+    /// Structure mode only: the whole-document Markdown, re-stitched across all pages processed
+    /// so far (so paragraphs spanning a page break are joined). Updates as each page lands.
+    var structuredMarkdown: String = ""
 
     @ObservationIgnored private var task: Task<Void, Never>?
 
@@ -140,11 +148,13 @@ final class SuryaParserViewModel {
         results = []
         selectedPage = 0
         totalPages = 0
+        structuredMarkdown = ""
         status = "Loading…"
 
         let input = inputPath
         let mode = mode
         let precision = precision
+        let normalize = normalizeOrthography
         var config = SuryaConfiguration()
         config.maxImagePixels = imageDetail.maxPixels
 
@@ -160,13 +170,16 @@ final class SuryaParserViewModel {
                 let session = try await SuryaSession.load(
                     SuryaSessionConfig(configuration: config, precision: precision))
 
-                // Process every page, appending a PageResult as each lands.
+                // Process every page, appending a PageResult as each lands. In Structure mode we
+                // also accumulate the OCR results and re-structure the whole document so paragraphs
+                // stitch across page boundaries, refreshing the combined output as each page lands.
+                var ocrResults: [OCRResult] = []
                 for (idx, page) in pages.enumerated() {
                     if Task.isCancelled { break }
                     await self?.set {
                         $0.status = "\(mode.rawValue) — page \(idx + 1)/\(pages.count)…"
                     }
-                    let (boxes, text) = try await Self.processPage(
+                    let (boxes, text, ocr) = try await Self.processPage(
                         session: session, page: page, mode: mode)
                     if Task.isCancelled { break }
                     await self?.set {
@@ -178,6 +191,14 @@ final class SuryaParserViewModel {
                                 imageSize: CGSize(width: page.width, height: page.height),
                                 boxes: boxes, text: text))
                         if wasFollowing { $0.selectedPage = $0.results.count - 1 }
+                    }
+                    // Structure mode: re-stitch across all pages seen so far (off the main actor),
+                    // then hop the combined Markdown back for display.
+                    if mode == .structure, let ocr {
+                        ocrResults.append(ocr)
+                        let markdown = Structurer(options: .init(normalizeOrthography: normalize))
+                            .structure(ocrResults).markdown()
+                        await self?.set { $0.structuredMarkdown = markdown }
                     }
                 }
 
@@ -198,17 +219,18 @@ final class SuryaParserViewModel {
     /// the detached task; returns Sendable values that are hopped back to the main actor.
     private nonisolated static func processPage(
         session: SuryaSession, page: CGImage, mode: DemoMode
-    ) async throws -> (boxes: [DemoBox], text: String) {
+    ) async throws -> (boxes: [DemoBox], text: String, ocr: OCRResult?) {
         switch mode {
         case .detect:
             let r = try await session.detectLines(page: page)
             return (r.lines.map { DemoBox(points: $0.box.cgPoints, label: nil) },
-                "\(r.lines.count) text line(s) detected.")
+                "\(r.lines.count) text line(s) detected.", nil)
         case .layout:
             let r = try await session.layout(page: page)
             return (
                 r.bboxes.map { DemoBox(points: $0.box.cgPoints, label: $0.label, order: $0.position) },
-                r.bboxes.map { "[\($0.position)] \($0.label)" }.joined(separator: "\n")
+                r.bboxes.map { "[\($0.position)] \($0.label)" }.joined(separator: "\n"),
+                nil
             )
         case .ocr:
             let r = try await session.ocr(page: page)
@@ -217,13 +239,25 @@ final class SuryaParserViewModel {
                     DemoBox(points: $0.box.cgPoints, label: $0.label, order: $0.readingOrder)
                 },
                 r.blocks.enumerated().map { "[\($0.offset)] \($0.element.html)" }
-                    .joined(separator: "\n\n")
+                    .joined(separator: "\n\n"),
+                r
+            )
+        case .structure:
+            // OCR the page; the whole-document structuring happens in `run()` so paragraphs can
+            // stitch across pages. Boxes reuse the OCR blocks for the overlay.
+            let r = try await session.ocr(page: page)
+            return (
+                r.blocks.map {
+                    DemoBox(points: $0.box.cgPoints, label: $0.label, order: $0.readingOrder)
+                },
+                "",
+                r
             )
         case .table:
             let r = try await session.tableRecognition(page: page)
             return (r.rows.map { DemoBox(points: $0.box.cgPoints, label: "R\($0.rowId)") }
                 + r.cols.map { DemoBox(points: $0.box.cgPoints, label: "C\($0.colId)") },
-                "rows=\(r.rows.count) cols=\(r.cols.count) cells=\(r.cells.count)")
+                "rows=\(r.rows.count) cols=\(r.cols.count) cells=\(r.cells.count)", nil)
         }
     }
 

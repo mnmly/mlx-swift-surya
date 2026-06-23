@@ -28,7 +28,12 @@ let session = try await SuryaSession.load(
     SuryaSessionConfig(configuration: SuryaConfiguration()))
 let pages = try session.loadPages(fileURL: pdfURL)
 let layout = try await session.layout(page: pages[0])
-let text = try await session.ocr(page: pages[0], blocks: layout.blocks)
+let text = try await session.ocr(page: pages[0], blocks: layout.bboxes)
+
+// Post-process recognized blocks into a reading-ordered document with whole
+// paragraphs (stitched across page/column breaks) and sentence segmentation.
+let doc = try await session.structure(pages: pages)
+print(doc.markdown())
 ```
 
 > Note: This package is mid-port. Each ``SuryaSession`` stage throws
@@ -88,6 +93,13 @@ let text = try await session.ocr(page: pages[0], blocks: layout.blocks)
 - ``ParsedLayoutBlock``
 - ``ParsedTableElement``
 - ``ParsedFullPageBlock``
+
+### Document structuring
+
+- ``Structurer``
+- ``StructuredDocument``
+- ``DocElement``
+- ``Paragraph``
 
 ### Images & utilities
 

@@ -151,6 +151,25 @@ public final class SuryaSession: @unchecked Sendable {
         try await pipeline().tableRecognition(page: page, maxTokens: maxTokens)
     }
 
+    /// OCR each page (in order) and post-process the results into a reading-ordered
+    /// ``StructuredDocument`` — paragraphs stitched whole across page/column breaks and
+    /// segmented into sentences. The structuring step is model-free (see ``Structurer``);
+    /// this convenience just chains it after recognition so a frontend can call one method.
+    ///
+    /// - Parameters:
+    ///   - pages: The page images to recognize, in reading order.
+    ///   - options: Structuring options (orthography normalization, de-hyphenation, …).
+    public func structure(
+        pages: [CGImage], options: Structurer.Options = .init()
+    ) async throws -> StructuredDocument {
+        var results: [OCRResult] = []
+        results.reserveCapacity(pages.count)
+        for page in pages {
+            results.append(try await ocr(page: page))
+        }
+        return Structurer(options: options).structure(results)
+    }
+
     /// Resolve, load (once), and cache the native DistilBERT OCR-error engine.
     private func ocrErrorEngine() async throws -> OCRErrorEngine {
         if let e = _ocrError { return e }

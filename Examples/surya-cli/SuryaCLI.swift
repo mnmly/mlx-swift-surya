@@ -14,7 +14,8 @@ struct SuryaCLI: AsyncParsableCommand {
             Detection and OCR-error are pending their native-MLX slices.
             """,
         subcommands: [
-            Info.self, Detect.self, Layout.self, OCR.self, Table.self, Gen.self, QA.self, Bench.self,
+            Info.self, Detect.self, Layout.self, OCR.self, Structure.self, Table.self, Gen.self,
+            QA.self, Bench.self,
         ],
         defaultSubcommand: Info.self
     )
@@ -134,6 +135,7 @@ struct Info: AsyncParsableCommand {
         print("Pipeline stages (status):")
         print("  layout  → SuryaSession.layout            [ready: VLM]")
         print("  ocr     → SuryaSession.ocr               [ready: VLM, full-page + block]")
+        print("  struct  → SuryaSession.structure         [ready: post-process, no model]")
         print("  table   → SuryaSession.tableRecognition  [ready: VLM]")
         print("  detect  → SuryaSession.detectLines       [pending: detection slice]")
         print("  qa      → SuryaSession.detectOCRErrors   [pending: ocr-error slice]")
@@ -222,6 +224,68 @@ struct OCR: AsyncParsableCommand {
             err("Wrote \(output)")
         } else {
             print(html)
+        }
+    }
+}
+
+/// OCR → reading-ordered structured document (paragraphs stitched whole, segmented into
+/// sentences). Demonstrates `SuryaSession.structure` / `Structurer`.
+struct Structure: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        abstract: "OCR then structure into paragraphs/sentences (md or json).")
+    @OptionGroup var common: CommonOptions
+
+    @Option(name: .long, help: "Output format: md (default) or json.")
+    var format: String = "md"
+
+    @Option(
+        name: .long,
+        help: "Page range like \"0-3,5\" (PDF). Overrides --page; demos cross-page stitching.")
+    var pageRange: String?
+
+    @Flag(
+        name: .long,
+        help: "Normalize historical orthography (long-s→s, ligatures) into a normalized track.")
+    var normalize: Bool = false
+
+    @Option(name: .long, help: "Write output to this file (default: stdout).")
+    var output: String?
+
+    func run() async throws {
+        err("Loading model…")
+        let session = try await common.makeSession()
+        let url = URL(fileURLWithPath: common.input)
+        let pages: [CGImage]
+        if let pageRange {
+            pages = try session.loadPages(fileURL: url, pageRange: parsePageRange(pageRange))
+        } else {
+            pages = [try common.loadPage(session)]
+        }
+        err("Loaded \(pages.count) page(s); running OCR + structuring…")
+        let start = Date()
+        let doc = try await session.structure(
+            pages: pages, options: Structurer.Options(normalizeOrthography: normalize))
+        err(
+            String(
+                format: "Done in %.1fs (%d element(s)).", Date().timeIntervalSince(start),
+                doc.elements.count))
+
+        let rendered: String
+        switch format.lowercased() {
+        case "json":
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+            rendered = String(data: try encoder.encode(doc), encoding: .utf8) ?? ""
+        case "md", "markdown":
+            rendered = doc.markdown()
+        default:
+            throw ValidationError("Unknown --format '\(format)' (use md | json).")
+        }
+        if let output {
+            try rendered.write(toFile: output, atomically: true, encoding: .utf8)
+            err("Wrote \(output)")
+        } else {
+            print(rendered)
         }
     }
 }

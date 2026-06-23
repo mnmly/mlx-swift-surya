@@ -1,0 +1,56 @@
+name: Build and deploy DocC
+
+# Builds the DocC site on push to main and deploys it to GitHub Pages.
+#
+# One-time setup (required — the deploy step 404s until Pages is enabled):
+#   gh api -X POST repos/mnmly/mlx-swift-surya/pages -f build_type=workflow
+# or Settings → Pages → Source → "GitHub Actions".
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    # macos-26 ships the Xcode 26 / Swift 6.2 toolchain that matches the
+    # local build this package is known to compile under. Using the runner's
+    # default Xcode (no hard-pinned Xcode_XX.app path, which drifts per image).
+    runs-on: macos-26
+    env:
+      # build_docs.sh reads these (defaults already match, set for clarity).
+      TARGETS: MLXSurya
+      HOSTING_BASE_PATH: mlx-swift-surya
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Show toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Build docs
+        run: ./Scripts/build_docs.sh
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -5,9 +5,12 @@ A Swift / [MLX](https://github.com/ml-explore/mlx-swift) port of
 table recognition, and reading order in 90+ languages, running natively on Apple
 Silicon.
 
-> **Status: skeleton.** The package shape, the shared `SuryaSession` driver API,
-> Swift 6 strict concurrency, and DocC are in place and build green. The model
-> slices are being filled in behind the stable Session API.
+📖 **[API documentation](https://mnmly.github.io/mlx-swift-surya/)** · 🏷 **[0.1.0 release](https://github.com/mnmly/mlx-swift-surya/releases/tag/0.1.0)**
+
+> **Status: v0.1.0.** All three models are ported and verified end-to-end — the
+> `surya-ocr-2` VLM (layout / OCR / table / reading order), native EfficientViT text
+> detection, and the native DistilBERT OCR-error classifier — behind a shared
+> `SuryaSession` driving both the `surya-cli` tool and the SuryaDemo SwiftUI app.
 
 ![SuryaDemo — full-page OCR with detected lines, reading order, and HTML output](.github/assets/suryademo.png)
 
@@ -20,15 +23,13 @@ surya 0.20 is **three independent components**, ported with three strategies:
 
 | Component | Upstream | Swift strategy |
 |---|---|---|
-| **`surya-ocr-2`** — layout, table, recognition, reading order | a `qwen3_5` VLM, served via vLLM / llama.cpp / OpenAI | **Reuse `MLXVLM`** (same arch as [`mlx-swift-chandra`](../mlx-swift-chandra)) + port prompts / preprocessing / parsers |
+| **`surya-ocr-2`** — layout, table, recognition, reading order | a `qwen3_5` VLM, served via vLLM / llama.cpp / OpenAI | **Reuse `MLXVLM`** (same arch family as `mlx-swift-chandra`) + port prompts / preprocessing / parsers |
 | **Text detection** | native PyTorch EfficientViT segmentation | **Native MLX port** (encoder + LiteMLA linear attention + decode head + heatmap→polygon) |
 | **OCR-error** | native PyTorch DistilBERT classifier | **Native MLX port** + BertTokenizer |
 
 All non-presentation work lives behind one library-side driver, `SuryaSession`,
-consumed identically by the `surya-cli` executable and (planned) a `SuryaDemo`
-SwiftUI app — the
-[`swift-cli-gui-shared-driver`](https://github.com/) pattern used across the
-sibling ports.
+consumed identically by the `surya-cli` executable and the `SuryaDemo` SwiftUI app
+(the shared-driver pattern — the same engine drives both frontends).
 
 ## Build
 
@@ -37,14 +38,14 @@ bare `swift` CLI:
 
 ```bash
 # Build everything (library + CLI)
-xcodebuild -scheme mlx-swift-surya -destination 'platform=macOS' \
+xcodebuild -scheme mlx-swift-surya-Package -destination 'platform=macOS' \
   -derivedDataPath .xcdd build
 
 # Run the CLI
 .xcdd/Build/Products/Debug/surya-cli info
 
-# Tests (pure-Swift skeleton tests run under either toolchain)
-xcodebuild -scheme mlx-swift-surya -destination 'platform=macOS' test
+# Tests
+xcodebuild -scheme mlx-swift-surya-Package -destination 'platform=macOS' test
 ```
 
 ## Roadmap
@@ -65,9 +66,9 @@ xcodebuild -scheme mlx-swift-surya -destination 'platform=macOS' test
       box overlay, reading-order flow, all-pages streaming, page flipping, model-download UX)
 - [x] **Release build + benchmark** — `surya-cli bench`; detection **0.53 s/page** (Release) vs
       ~367 s (Debug), **0 MB active-memory drift** (no leak)
-- [x] **DocC site** built locally (`Scripts/build_docs.sh`, + `llms.txt`) and a GitHub Pages
-      workflow (`.github/workflows/docs.yml`) — publishing activates once a remote + Pages are set up
-- [ ] int8 / quantized VLM variant; end-to-end numerical parity vs the Python reference (future)
+- [x] **DocC site** (`Scripts/build_docs.sh`) published to GitHub Pages via
+      `.github/workflows/docs.yml` → <https://mnmly.github.io/mlx-swift-surya/>
+- [ ] Batched multi-page VLM decode for throughput; end-to-end numerical parity vs Python (future)
 
 ## Performance
 
@@ -108,6 +109,16 @@ xcodebuild -scheme mlx-swift-surya-Package -destination 'platform=macOS' -derive
 xcodebuild -project Examples/SuryaDemo/SuryaDemo.xcodeproj -scheme SuryaDemo \
   -destination 'platform=macOS' build
 ```
+
+## Documentation
+
+API reference is published with DocC to GitHub Pages:
+**<https://mnmly.github.io/mlx-swift-surya/>**
+
+Rebuild it locally with `Scripts/build_docs.sh` (uses `xcodebuild docbuild` +
+`transform-for-static-hosting` — the SwiftPM DocC plugin can't compile mlx-swift's Metal
+shaders). `///` doc comments on public symbols are published, so keep them healthy when changing
+the public API.
 
 ## License
 

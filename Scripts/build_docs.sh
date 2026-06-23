@@ -20,10 +20,16 @@ OUTPUT_DIR="${OUTPUT_DIR:-docs}"
 DD="${DERIVED_DATA:-.xcdd-docs}"
 slug="$(echo "$TARGET" | tr '[:upper:]' '[:lower:]')"
 
+# Resolve packages first. On a fresh checkout (e.g. CI) `docbuild` otherwise fails at
+# ComputeTargetDependencyGraph with "Supported platforms … is empty" because the package graph
+# isn't resolved yet.
+echo ">> resolve package dependencies"
+xcodebuild -resolvePackageDependencies -scheme "$TARGET" -derivedDataPath "$DD" 2>&1 | tail -2
+
 echo ">> docbuild $TARGET"
 xcodebuild docbuild \
   -scheme "$TARGET" \
-  -destination 'platform=macOS' \
+  -destination 'generic/platform=macOS' \
   -derivedDataPath "$DD" \
   | tail -2
 

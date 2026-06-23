@@ -5,12 +5,15 @@ A Swift / [MLX](https://github.com/ml-explore/mlx-swift) port of
 table recognition, and reading order in 90+ languages, running natively on Apple
 Silicon.
 
-📖 **[API documentation](https://mnmly.github.io/mlx-swift-surya/)** · 🏷 **[0.1.0 release](https://github.com/mnmly/mlx-swift-surya/releases/tag/0.1.0)**
+📖 **[API documentation](https://mnmly.github.io/mlx-swift-surya/)** · 🏷 **[0.2.0 release](https://github.com/mnmly/mlx-swift-surya/releases/tag/0.2.0)**
 
-> **Status: v0.1.0.** All three models are ported and verified end-to-end — the
+> **Status: v0.2.0.** All three models are ported and verified end-to-end — the
 > `surya-ocr-2` VLM (layout / OCR / table / reading order), native EfficientViT text
 > detection, and the native DistilBERT OCR-error classifier — behind a shared
 > `SuryaSession` driving both the `surya-cli` tool and the SuryaDemo SwiftUI app.
+> v0.2.0 adds a `Structurer` that post-processes recognized blocks into a
+> reading-ordered document — paragraphs stitched whole across page/column breaks and
+> segmented into sentences (language-aware, so it holds up on non-English text).
 
 ![SuryaDemo — full-page OCR with detected lines, reading order, and HTML output](.github/assets/suryademo.png)
 
@@ -55,6 +58,10 @@ xcodebuild -scheme mlx-swift-surya-Package -destination 'platform=macOS' test
   - [x] Custom char-level `WordLevel` tokenizer (`SuryaWordLevelTokenizer`) + Jinja chat
         template — surya-ocr-2's tokenizer is unsupported by swift-transformers
   - [x] Prompts, image scale-to-fit, JSON/HTML parsers, pipeline + CLI (`layout`/`ocr`/`table`/`gen`)
+- [x] **Document structuring** (`Structurer`) — recognized blocks → reading-ordered
+      `StructuredDocument`: cross-page/column paragraph stitching, de-hyphenation, language
+      detection + sentence segmentation, opt-in historical-orthography normalization;
+      `surya-cli structure` (md/json) and a GUI Structure mode
   - [x] End-to-end verified on a real page (Attention Is All You Need)
 - [x] **Native EfficientViT text detection** — encoder + LiteMLA linear attention + decode head
   - [x] PyTorch→NHWC weight conversion, SegFormer preprocessing, CRAFT heatmap→polygon postproc
@@ -62,12 +69,12 @@ xcodebuild -scheme mlx-swift-surya-Package -destination 'platform=macOS' test
 - [x] **Native DistilBERT OCR-error classifier** — embeddings + 6 transformer blocks + head
   - [x] WordPiece tokenizer via swift-transformers `AutoTokenizer.from(modelFolder:)`
   - [x] End-to-end verified (clean→good 0.99, garbled→bad 0.99); `surya-cli qa --text …`
-- [x] **`SuryaDemo` SwiftUI app** on the shared `SuryaSession` (Detect / Layout / OCR / Table,
-      box overlay, reading-order flow, all-pages streaming, page flipping, model-download UX)
+- [x] **`SuryaDemo` SwiftUI app** on the shared `SuryaSession` (Detect / Layout / OCR / Structure /
+      Table, box overlay, reading-order flow, all-pages streaming, page flipping, model-download UX)
 - [x] **Release build + benchmark** — `surya-cli bench`; detection **0.53 s/page** (Release) vs
       ~367 s (Debug), **0 MB active-memory drift** (no leak)
-- [x] **DocC site** (`Scripts/build_docs.sh`) published to GitHub Pages (gh-pages branch) →
-      <https://mnmly.github.io/mlx-swift-surya/>
+- [x] **DocC site** (`Scripts/build_docs.sh`) built & deployed to GitHub Pages by Actions
+      (`.github/workflows/docs.yml`, on push to `main`) → <https://mnmly.github.io/mlx-swift-surya/>
 - [x] **Numerical parity vs Python** (`Scripts/parity/`, `surya-cli parity …`): OCR-error logits
       0.0027, detection heatmap 0.0037, VLM input_ids identical — caught & fixed a detection
       eval-mode (BatchNorm) bug
@@ -118,11 +125,13 @@ xcodebuild -project Examples/SuryaDemo/SuryaDemo.xcodeproj -scheme SuryaDemo \
 API reference is published with DocC to GitHub Pages:
 **<https://mnmly.github.io/mlx-swift-surya/>**
 
-Build + publish with `Scripts/build_docs.sh publish` (builds the static site, then force-pushes it
-to the `gh-pages` branch, which Pages serves). It uses `xcodebuild docbuild` +
-`transform-for-static-hosting` — the SwiftPM DocC plugin can't compile mlx-swift's Metal shaders,
-and `docbuild` is unreliable on CI runners for this package, so docs are built locally. `///` doc
-comments on public symbols are published, so keep them healthy when changing the public API.
+The site is built and deployed automatically by GitHub Actions (`.github/workflows/docs.yml`) on
+every push to `main`, via `Scripts/build_docs.sh` (`swift package generate-documentation` +
+`--transform-for-static-hosting`, with per-symbol "View on GitHub" source links). To build it
+locally run `Scripts/build_docs.sh` — this needs a Swift toolchain matching the active SDK (a
+mismatched bare `swift` fails to resolve; `Scripts/build_docs.sh preview` serves it with live
+reload). `///` doc comments on public symbols are published, so keep them healthy when changing
+the public API.
 
 ## License
 

@@ -32,7 +32,7 @@ let package = Package(
 
         // VLM (surya-ocr-2, qwen3_5) — same stack as mlx-swift-chandra.
         // Upstream tag carrying qwen3_5 VLM support.
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", .upToNextMinor(from: "3.31.3")),
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", .upToNextMinor(from: "3.31.4")),
         .package(url: "https://github.com/huggingface/swift-huggingface", from: "0.9.0"),
         .package(url: "https://github.com/huggingface/swift-transformers", from: "1.3.0"),
         // surya-ocr-2's char-level WordLevel tokenizer is unsupported by swift-transformers,

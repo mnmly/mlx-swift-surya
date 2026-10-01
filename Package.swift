@@ -26,13 +26,13 @@ let package = Package(
         .executable(name: "surya-cli", targets: ["surya-cli"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/ml-explore/mlx-swift", .upToNextMinor(from: "0.31.3")),
+        .package(url: "https://github.com/ml-explore/mlx-swift", "0.31.3" ..< "0.33.0"),
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.0"),
         .package(url: "https://github.com/swiftlang/swift-docc-plugin", from: "1.4.3"),
 
         // VLM (surya-ocr-2, qwen3_5) — same stack as mlx-swift-chandra.
-        // Upstream tag carrying qwen3_5 VLM support.
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", branch: "main"),
+        // 3.32.3 registers gemma4_unified (previously needed main) and carries qwen3_5.
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", .upToNextMinor(from: "3.32.3")),
         .package(url: "https://github.com/huggingface/swift-huggingface", from: "0.9.0"),
         .package(url: "https://github.com/huggingface/swift-transformers", from: "1.3.0"),
         // surya-ocr-2's char-level WordLevel tokenizer is unsupported by swift-transformers,
